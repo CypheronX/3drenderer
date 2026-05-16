@@ -10,8 +10,7 @@
 
 triangle_t* triangles_to_render = NULL;
 
-vec3_t camera_position = { .x = 0, .y = 0, .z = -3 };
-
+vec3_t camera_position = { 0, 0, 0 };
 float fov_factor = 640;
 
 bool is_running = false;
@@ -36,7 +35,7 @@ void setup(void) {
 
     // Loads the cube values in the mesh data structure
     // load_cube_mesh_data();
-    load_obj_file_data("/home/alex/code/3drenderer/assets/f22.obj");
+    load_obj_file_data("/home/alex/code/3drenderer/assets/cube.obj");
 }
 
 void process_input(void) {
@@ -82,8 +81,8 @@ void update(void) {
     triangles_to_render = NULL;
 
     mesh.rotation.x += 0.01;
-    mesh.rotation.y += 0.00;
-    mesh.rotation.z += 0.00;
+    mesh.rotation.y += 0.01;
+    mesh.rotation.z += 0.02;
 
     // Loop all triangle faces
     for (int i = 0; i < array_length(mesh.faces); i++) {
@@ -94,7 +93,7 @@ void update(void) {
         face_vertices[1] = mesh.vertices[mesh_face.b - 1];
         face_vertices[2] = mesh.vertices[mesh_face.c - 1];
 
-        triangle_t projected_triangle;
+        vec3_t transformed_vertices[N_FACE_VERTICES];
 
         // Loop all three vertices of this current face and apply transformations
         for (int y = 0; y < N_FACE_VERTICES; y++) {
@@ -105,10 +104,23 @@ void update(void) {
             transformed_vertex = vec3_rotate_z(transformed_vertex, mesh.rotation.z);
 
             // Translate the vertex away from the camera in z
-            transformed_vertex.z -= camera_position.z;
+            transformed_vertex.z += 5;
 
+            // Save transformed vertex in the array of transformed vertices
+            transformed_vertices[y] = transformed_vertex;
+        }
+
+        // Bypass the triangles that are looking away from the camera
+        if (dot_product(transformed_vertices, camera_position) < 0) {
+            continue;
+        } 
+
+        triangle_t projected_triangle;
+
+        // Loop all three vertices to perform the projection
+        for (int y = 0; y < N_FACE_VERTICES; y++) {
             // Project the current vertex
-            vec2_t projected_point = project(transformed_vertex);
+            vec2_t projected_point = project(transformed_vertices[y]);
 
             // Scale and translate the projected points to the middle of the screen
             projected_point.x += (window_width / 2);

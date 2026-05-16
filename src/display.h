@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <SDL2/SDL.h>
+#include "vector.h"
 
 #define FPS 60
 #define FRAME_TARGET_TIME (1000 / FPS)
@@ -25,5 +26,6 @@ void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t colo
 void render_color_buffer(void);
 void clear_color_buffer(uint32_t color);
 void destroy_window(void);
+float dot_product(vec3_t* triangle_vertices, vec3_t camera_position);
 
 #endif
