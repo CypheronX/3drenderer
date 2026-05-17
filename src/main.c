@@ -16,7 +16,14 @@ float fov_factor = 640;
 bool is_running = false;
 int previous_frame_time = 0;
 
+RenderMode render_method;
+CullMode cull_method;
+
 void setup(void) {
+    // Initialize render mode and triangle culling method
+    render_method = RENDER_WIRE;
+    cull_method = CULL_BACKFACE;
+
     // Allocate the required memory in bytes to hold the color buffer 
     color_buffer = (uint32_t*) malloc(sizeof(uint32_t) * window_width * window_height);
     if (color_buffer == NULL) {
@@ -34,8 +41,8 @@ void setup(void) {
     );
 
     // Loads the cube values in the mesh data structure
-    // load_cube_mesh_data();
-    load_obj_file_data("/home/alex/code/3drenderer/assets/cube.obj");
+    load_cube_mesh_data();
+    // load_obj_file_data("/home/alex/code/3drenderer/assets/cube.obj");
 }
 
 void process_input(void) {
@@ -47,9 +54,35 @@ void process_input(void) {
                 is_running = false;
                 break;
             case SDL_KEYDOWN:
-                if (event.key.keysym.sym == SDLK_ESCAPE)
-                    is_running = false;
-                break;
+                switch (event.key.keysym.sym) {
+                    case SDLK_ESCAPE:
+                        is_running = false;
+                        break;
+
+                    case SDLK_1:
+                        render_method = RENDER_WIRE_VERTEX;
+                        break;
+                        
+                    case SDLK_2:
+                        render_method = RENDER_WIRE;
+                        break;
+
+                    case SDLK_3:
+                        render_method = RENDER_FILL_TRIANGLE;
+                        break;
+
+                    case SDLK_4:
+                        render_method = RENDER_FILL_TRIANGLE_WIRE;
+                        break;
+
+                    case SDLK_c:
+                        cull_method = CULL_BACKFACE;
+                        break;
+
+                    case SDLK_d:
+                        cull_method = CULL_NONE;
+                        break;
+                }
         }
     }
 }
@@ -81,8 +114,8 @@ void update(void) {
     triangles_to_render = NULL;
 
     mesh.rotation.x += 0.01;
-    mesh.rotation.y += 0.01;
-    mesh.rotation.z += 0.02;
+    mesh.rotation.y += 0.02;
+    mesh.rotation.z += 0.01;
 
     // Loop all triangle faces
     for (int i = 0; i < array_length(mesh.faces); i++) {
@@ -111,23 +144,30 @@ void update(void) {
         }
 
         // Bypass the triangles that are looking away from the camera
-        if (dot_product(transformed_vertices, camera_position) < 0) {
+        if (cull_method == CULL_BACKFACE && dot_product(transformed_vertices, camera_position) < 0) {
             continue;
         } 
 
-        triangle_t projected_triangle;
+        vec2_t projected_points[N_FACE_VERTICES];
 
         // Loop all three vertices to perform the projection
         for (int y = 0; y < N_FACE_VERTICES; y++) {
             // Project the current vertex
-            vec2_t projected_point = project(transformed_vertices[y]);
+            projected_points[y] = project(transformed_vertices[y]);
 
             // Scale and translate the projected points to the middle of the screen
-            projected_point.x += (window_width / 2);
-            projected_point.y += (window_height / 2);
-
-            projected_triangle.points[y] = projected_point;
+            projected_points[y].x += (window_width / 2);
+            projected_points[y].y += (window_height / 2);
         }
+
+        triangle_t projected_triangle = {
+            .points = {
+                { projected_points[0].x, projected_points[0].y },
+                { projected_points[1].x, projected_points[1].y },
+                { projected_points[2].x, projected_points[2].y },
+            },
+            .color = mesh_face.color
+        };
 
         // Save the projected triangle in the array of triangles to render
         array_push(triangles_to_render, projected_triangle);
@@ -142,19 +182,35 @@ void render(void) {
     for (int i = 0; i < num_trinagles; i++) {
         triangle_t triangle = triangles_to_render[i];
 
-        draw_rect(triangle.points[0].x, triangle.points[0].y, 3, 3, 0xFFFFFF00);
-        draw_rect(triangle.points[1].x, triangle.points[1].y, 3, 3, 0xFFFFFF00);
-        draw_rect(triangle.points[2].x, triangle.points[2].y, 3, 3, 0xFFFFFF00);
+        if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE) {
+            draw_filled_triangle(
+                triangle.points[0].x, 
+                triangle.points[0].y, 
+                triangle.points[1].x, 
+                triangle.points[1].y, 
+                triangle.points[2].x, 
+                triangle.points[2].y, 
+                triangle.color
+            );
+        }
 
-        draw_triangle(
-            triangle.points[0].x, 
-            triangle.points[0].y, 
-            triangle.points[1].x, 
-            triangle.points[1].y, 
-            triangle.points[2].x, 
-            triangle.points[2].y, 
-            0xFF00FF00
-        );
+        if (render_method == RENDER_WIRE || render_method == RENDER_FILL_TRIANGLE_WIRE || render_method == RENDER_WIRE_VERTEX) {
+            draw_triangle(
+                triangle.points[0].x, 
+                triangle.points[0].y, 
+                triangle.points[1].x, 
+                triangle.points[1].y, 
+                triangle.points[2].x, 
+                triangle.points[2].y, 
+                0x00E5FF
+            );
+        }
+
+        if (render_method == RENDER_WIRE_VERTEX) {
+            draw_rect(triangle.points[0].x, triangle.points[0].y, 3, 3, 0xFFFFFFFF);
+            draw_rect(triangle.points[1].x, triangle.points[1].y, 3, 3, 0xFFFFFFFF);
+            draw_rect(triangle.points[2].x, triangle.points[2].y, 3, 3, 0xFFFFFFFF);
+        }
     }
 
     // Clear the array of triangles to render every frame loop
